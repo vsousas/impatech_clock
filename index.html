@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Relógio IMPA Tech</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=Outfit:wght@400;600&family=STIX+Two+Text:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFFFFF; --ink:#000000; --muted:#5E5A55; --line:#E3DDD3; --face:#FFFFFF;
+  --beige:#EFE6D8; --pink:#F4A6C0; --orange:#FF6B2C; --yellow:#FFD23F; --green:#2BB673;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#000000; --ink:#FFFFFF; --muted:#A8A197; --line:#2E2A25; --face:#121212; --beige:#2A241C;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#000000; --ink:#FFFFFF; --muted:#A8A197; --line:#2E2A25; --face:#121212; --beige:#2A241C;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.stage{
+  height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);gap:3vh;
+  padding:4vh 4vw;
+}
+.time{
+  background:#000;color:#FF6B2C;border-radius:4vh 4vh 4vh 1.2vh;text-align:center;
+  padding:1.5vh 3vw;font-variant-numeric:tabular-nums;font-weight:700;
+  font-size:min(26vh,15vw);line-height:1.02;letter-spacing:-.02em;
+  border:1.5px solid var(--line);
+}
+.time .sec{color:#FFFFFF;font-weight:600;font-size:.5em;margin-left:.06em}
+.lower{
+  display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:5vw;min-height:0;
+}
+.dial{height:100%;max-height:100%;width:auto;aspect-ratio:252/228;display:block;justify-self:end}
+.dial .f, .dial .f text{font-family:"STIX Two Text","Cambria Math",Georgia,serif;fill:var(--ink)}
+.dial text.f{font-size:8.2px;text-anchor:middle;dominant-baseline:central}
+.info{display:flex;flex-direction:column;gap:2.4vh;min-width:0}
+.brand{font-family:"Outfit","Futura","Century Gothic",system-ui,sans-serif;font-weight:600;font-size:min(11vh,7vw);letter-spacing:-.03em;margin:0;text-transform:lowercase;line-height:1}
+.tag{font-family:"Outfit","Futura","Century Gothic",system-ui,sans-serif;margin:0;color:var(--muted);font-size:min(4.2vh,2.6vw)}
+.date{font-size:min(4.6vh,2.8vw);font-weight:600;margin-top:1vh}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:1vh;transition:opacity .4s}
+button{font:inherit;font-size:.9rem;color:var(--ink);background:transparent;border:1.5px solid var(--ink);border-radius:999px;padding:8px 16px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+button.fs{background:#FF6B2C;border-color:#FF6B2C;color:#000;font-weight:600}
+button:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.note{color:var(--muted);font-size:.8rem;max-width:40ch;margin:0;transition:opacity .4s}
+/* On the projector, controls fade out when the mouse is still */
+body.idle .controls, body.idle .note{opacity:0;pointer-events:none}
+body.idle{cursor:none}
+
+/* Portrait screens (phones): stack everything, digital clock still first */
+@media (max-aspect-ratio:1/1){
+  body{height:auto;min-height:100%}
+  .stage{height:auto;grid-template-rows:auto;gap:22px;padding:24px 16px}
+  .time{font-size:clamp(3.4rem,17vw,6.4rem);border-radius:32px 32px 32px 8px;padding:12px 16px}
+  .lower{grid-template-columns:1fr;justify-items:center;gap:22px}
+  .dial{height:auto;width:min(92vw,460px);justify-self:center}
+  .info{align-items:center;text-align:center;gap:10px}
+  .brand{font-size:2.6rem}.tag{font-size:1.05rem}.date{font-size:1.1rem}
+  .controls{justify-content:center}
+  body.idle .controls, body.idle .note{opacity:1;pointer-events:auto}
+  body.idle{cursor:auto}
+}
+@media (prefers-reduced-motion:reduce){.controls,.note{transition:none}}
+</style>
+</head>
+<body>
+<main class="stage">
+  <div class="time" id="time">--:--<span class="sec">:--</span></div>
+  <div class="lower">
+    <svg class="dial" viewBox="-126 -114 252 228" role="img" aria-label="Relógio analógico com fórmulas no lugar dos números">
+      <circle r="80" fill="var(--face)" stroke="var(--ink)" stroke-width="2"/>
+      <g id="ticks"></g>
+      <g id="labels"></g>
+      <line id="h" x1="0" y1="8" x2="0" y2="-40" stroke="var(--ink)" stroke-width="5.5" stroke-linecap="round"/>
+      <line id="m" x1="0" y1="10" x2="0" y2="-60" stroke="var(--ink)" stroke-width="3.2" stroke-linecap="round"/>
+      <line id="s" x1="0" y1="14" x2="0" y2="-71" stroke="var(--orange)" stroke-width="1.6" stroke-linecap="round"/>
+      <circle r="5" fill="var(--pink)" stroke="var(--ink)" stroke-width="1.5"/>
+    </svg>
+    <div class="info">
+      <header>
+        <h1 class="brand">impa tech</h1>
+        <p class="tag">Onde cada hora é um aprendizado</p>
+      </header>
+      <div class="date" id="date"></div>
+      <div class="controls" role="group" aria-label="Fuso horário">
+        <button id="btnBR" aria-pressed="true">Horário de Brasília</button>
+        <button id="btnLocal" aria-pressed="false">Meu fuso</button>
+        <button id="btnFS" class="fs" hidden>⛶ Tela cheia</button>
+      </div>
+      <p class="note">Usa o relógio do computador. Tecla F também liga e desliga a tela cheia.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+(function(){
+  var NS='http://www.w3.org/2000/svg';
+  function el(tag,attrs,text){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;return e}
+  function T(x,y,size,str,extra){var a={x:x,y:y,'font-size':size,'text-anchor':'middle','dominant-baseline':'central'};for(var k in extra)a[k]=extra[k];return el('text',a,str)}
+
+  // Each label is either a plain string or a builder returning a <g> centered at (0,0).
+  var L=[
+    '4!/2!',
+    function(g){ // ∫₀¹ 2x dx, limits set against the sign
+      g.appendChild(T(-11,0,16,'∫'));
+      g.appendChild(T(-5,-7.6,5.6,'1'));
+      g.appendChild(T(-12.4,8,5.6,'0'));
+      g.appendChild(T(6,0,8.2,'2x dx'));
+    },
+    'V − A + F',
+    '⌊π⌋',
+    function(g){ // dim ℝ³⁺¹
+      g.appendChild(T(-9,0,8.2,'dim'));
+      g.appendChild(T(4,0,8.2,'ℝ'));
+      g.appendChild(T(12,-3.8,5.2,'3+1'));
+    },
+    function(g){ // e^(x−5) = 1
+      g.appendChild(T(-11,0,8.2,'e'));
+      g.appendChild(T(-3.6,-4,5.4,'x−5'));
+      g.appendChild(T(9,0,8.2,'= 1'));
+    },
+    '3!',
+    function(g){ // √(x+2) = 3 with a proper vinculum
+      g.appendChild(T(-14,0.6,9.5,'√'));
+      g.appendChild(el('line',{x1:-10.2,y1:-5.6,x2:3.4,y2:-5.6,stroke:'currentColor','stroke-width':0.7}));
+      g.appendChild(T(-3.4,0,8.2,'x+2'));
+      g.appendChild(T(12,0,8.2,'= 3'));
+    },
+    'log₂ 256',
+    '‖(3, 6, 6)‖',
+    function(g){ // Σ_{k=1}^{4} k with limits centered on the sign
+      g.appendChild(T(-4,0,13,'∑'));
+      g.appendChild(T(-4,-8.6,5.2,'4'));
+      g.appendChild(T(-4,8.8,5.2,'k=1'));
+      g.appendChild(T(7,0.4,8.6,'k'));
+    },
+    function(g){ // 2π/3 as a stacked fraction
+      g.appendChild(T(0,-5,7.6,'2π'));
+      g.appendChild(el('line',{x1:-6,y1:0,x2:6,y2:0,stroke:'currentColor','stroke-width':0.7}));
+      g.appendChild(T(0,5.4,7.6,'3'));
+    }
+  ];
+
+  var ticks=document.getElementById('ticks'), labels=document.getElementById('labels'), labelEls=[], tickEls=[];
+  for(var i=0;i<60;i++){
+    var a=i*Math.PI/30, big=i%5===0, r1=big?67:72, r2=76;
+    var l=el('line',{x1:Math.sin(a)*r1,y1:-Math.cos(a)*r1,x2:Math.sin(a)*r2,y2:-Math.cos(a)*r2,
+      stroke:big?'var(--ink)':'var(--line)','stroke-width':big?2.4:1,'stroke-linecap':'round'});
+    ticks.appendChild(l);
+    if(big){
+      var k=i/5, node=el('g',{'class':'f',style:'color:var(--ink)'}), inner=el('g',{transform:'scale(1.15)'});
+      if(typeof L[k]==='string'){ inner.appendChild(T(0,0,8.2,L[k])); } else { L[k](inner); }
+      node.appendChild(inner); node._a=a;
+      labels.appendChild(node); labelEls[k]=node; tickEls[k]=l;
+    }
+  }
+
+  // Place each formula outside the rim: its nearest edge sits a fixed gap from the circle.
+  function placeLabels(){
+    var R0=86;
+    labelEls.forEach(function(n){
+      var bb=n.firstChild.getBBox(), sc=1.15, w=bb.width*sc, h=bb.height*sc;
+      var cx=(bb.x+bb.width/2)*sc, cy=(bb.y+bb.height/2)*sc;
+      var sa=Math.sin(n._a), ca=-Math.cos(n._a);
+      var ext=Math.abs(sa)*w/2+Math.abs(ca)*h/2;
+      var d=R0+ext, x=sa*d-cx, y=ca*d-cy;
+      n.setAttribute('transform','translate('+x.toFixed(2)+' '+y.toFixed(2)+')');
+    });
+  }
+  placeLabels();
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(placeLabels);
+
+  var useBR=true, btnBR=document.getElementById('btnBR'), btnLocal=document.getElementById('btnLocal');
+  var lastHour=-1, lastSec=-1;
+  function setMode(br){
+    useBR=br; btnBR.setAttribute('aria-pressed',br); btnLocal.setAttribute('aria-pressed',!br);
+    lastHour=-1; lastSec=-1;
+    try{localStorage.setItem('impa-clock-mode',br?'br':'local')}catch(e){}
+  }
+  btnBR.onclick=function(){setMode(true)}; btnLocal.onclick=function(){setMode(false)};
+  try{ if(localStorage.getItem('impa-clock-mode')==='local') setMode(false) }catch(e){}
+
+  function parts(d){
+    var o={hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false};
+    if(useBR) o.timeZone='America/Sao_Paulo';
+    var p={}; new Intl.DateTimeFormat('pt-BR',o).formatToParts(d).forEach(function(x){p[x.type]=x.value});
+    return {h:+p.hour%24,m:+p.minute,s:+p.second};
+  }
+  var H=document.getElementById('h'),M=document.getElementById('m'),S=document.getElementById('s');
+  var timeEl=document.getElementById('time'),dateEl=document.getElementById('date');
+  function pad(n){return String(n).padStart(2,'0')}
+
+  function highlight(h12){
+    labelEls.forEach(function(n,i){
+      n.classList.toggle('now',i===h12);
+      if(n.tagName==='g') n.style.color=(i===h12)?'var(--orange)':'var(--ink)';
+    });
+    tickEls.forEach(function(n,i){
+      n.setAttribute('stroke',i===h12?'var(--orange)':'var(--ink)');
+      n.setAttribute('stroke-width',i===h12?4:2.4);
+    });
+  }
+
+  function tick(){
+    var now=new Date(), p=parts(now), ms=now.getMilliseconds();
+    var s=p.s+ms/1000, m=p.m+s/60, h=(p.h%12)+m/60;
+    S.setAttribute('transform','rotate('+(s*6)+')');
+    M.setAttribute('transform','rotate('+(m*6)+')');
+    H.setAttribute('transform','rotate('+(h*30)+')');
+    if(p.s!==lastSec){
+      lastSec=p.s;
+      timeEl.innerHTML=pad(p.h)+':'+pad(p.m)+'<span class="sec">:'+pad(p.s)+'</span>';
+      var o={weekday:'long',day:'numeric',month:'long'};
+      if(useBR) o.timeZone='America/Sao_Paulo';
+      var ds=new Intl.DateTimeFormat('pt-BR',o).format(now); dateEl.textContent=ds.charAt(0).toUpperCase()+ds.slice(1);
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // Fullscreen button (hidden where the browser or host page doesn't allow it)
+  var btnFS=document.getElementById('btnFS'), root=document.documentElement;
+  var canFS=document.fullscreenEnabled||document.webkitFullscreenEnabled;
+  function isFS(){return !!(document.fullscreenElement||document.webkitFullscreenElement)}
+  function toggleFS(){
+    try{
+      if(isFS()){ (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+      else{ var r=(root.requestFullscreen||root.webkitRequestFullscreen).call(root); if(r&&r.catch) r.catch(function(){}); }
+    }catch(e){}
+  }
+  function syncFS(){ btnFS.textContent=isFS()?'✕ Sair da tela cheia':'⛶ Tela cheia'; }
+  if(canFS){
+    btnFS.hidden=false; btnFS.onclick=toggleFS;
+    document.addEventListener('fullscreenchange',syncFS); document.addEventListener('webkitfullscreenchange',syncFS);
+    window.addEventListener('keydown',function(e){ if((e.key==='f'||e.key==='F')&&!e.ctrlKey&&!e.metaKey&&!e.altKey) toggleFS(); });
+  }
+
+  var idleT;
+  function wake(){ document.body.classList.remove('idle'); clearTimeout(idleT); idleT=setTimeout(function(){document.body.classList.add('idle')},3000); }
+  ['mousemove','mousedown','keydown','touchstart'].forEach(function(ev){ window.addEventListener(ev,wake,{passive:true}) });
+  wake();
+})();
+</script>
+</body>
+</html>
